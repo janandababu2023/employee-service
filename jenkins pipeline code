@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "employee-service"
+        AWS_REGION = "ap-south-1"
+        EKS_CLUSTER = "my-eks-cluster"
+        S3_BUCKET = "your-s3-bucket-name"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/your-username/employee-service.git', branch: 'main'
+            }
+        }
+
+        stage('Build Maven Project') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Docker Build & Tag') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME:latest .'
+            }
+        }
+
+        stage('Push to S3 JAR Artifact') {
+            steps {
+                sh 'aws s3 cp target/employee-service-1.0.0.jar s3://$S3_BUCKET/'
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                script {
+                    def ecrRepo = sh(script: "aws ecr describe-repositories --region $AWS_REGION --query \"repositories[?repositoryName=='$IMAGE_NAME'].repositoryUri\" --output text", returnStdout: true).trim()
+                    if (!ecrRepo) {
+                        sh "aws ecr create-repository --repository-name $IMAGE_NAME --region $AWS_REGION"
+                        ecrRepo = sh(script: "aws ecr describe-repositories --region $AWS_REGION --query \"repositories[?repositoryName=='$IMAGE_NAME'].repositoryUri\" --output text", returnStdout: true).trim()
+                    }
+
+                    sh """
+                        aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ecrRepo
+                        docker tag $IMAGE_NAME:latest $ecrRepo:latest
+                        docker push $ecrRepo:latest
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                sh """
+                aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
+                kubectl apply -f k8s/
+                """
+            }
+        }
+    }
+}
