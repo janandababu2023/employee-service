@@ -12,9 +12,13 @@ spec:
     metadata:
       labels:
         app: employee-service
+      annotations:                          # 👈 Add these
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8080"
     spec:
       containers:
         - name: employee-service
-          image: 397139394912.dkr.ecr.ap-south-1.amazonaws.com/employee-service:latest
+          image: <your-ecr-url>
           ports:
             - containerPort: 8080

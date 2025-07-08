@@ -3,6 +3,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: employee-service
+  labels:
+    app: employee-service
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/actuator/prometheus"
+    prometheus.io/port: "8080"
 spec:
   type: LoadBalancer
   selector:
@@ -11,3 +17,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8080
+
